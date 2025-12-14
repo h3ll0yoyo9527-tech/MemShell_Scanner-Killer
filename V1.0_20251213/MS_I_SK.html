@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>SpringBoot—Interceptor MemoryShell Scanner/Killer</title>
+</head>
+<body>
+<center>
+    <div>
+        <h2>SpringBoot—Interceptor MemoryShell Scanner/Killer</h2>
+
+        <div id="message"></div>
+
+        <div>
+            <h4 style="display: inline-block; margin-right: 10px;">Scan Result</h4>
+            <label style="display: inline-block;">
+                <input type="checkbox" id="compactMode" onchange="refreshDisplay()">
+                精简模式
+            </label>
+        </div>
+
+        <table border="1" cellspacing="0" width="95%" style="table-layout:fixed;word-break:break-all;background:#f2f2f2">
+            <thead>
+            <tr>
+                <th width="4%">ID</th>
+                <th width="30%">Interceptor类名</th>
+                <th width="10%">拦截路径</th>
+                <th width="18%">类加载器</th>
+                <th width="30%">文件路径</th>
+                <th width="5.5%">Kill</th>
+                <th width="5.5%">Dump</th>
+            </tr>
+            </thead>
+            <tbody id="resultBody">
+            </tbody>
+        </table>
+
+        <br/>
+        <div style="color: #666;">ddg：甲方现场不相信眼泪</div>
+    </div>
+</center>
+
+<script>
+    // 全局变量存储扫描结果
+    let allInterceptors = [];
+
+    // 页面加载时自动扫描
+    document.addEventListener('DOMContentLoaded', function() {
+        refreshScan();
+    });
+
+    function refreshScan() {
+        fetch('/I/scan')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    allInterceptors = data.data;
+                    refreshDisplay();
+                    showMessage(`扫描完成，共发现 ${allInterceptors.length} 个Interceptor`, 'success');
+                } else {
+                    showMessage('扫描失败: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                showMessage('扫描失败: ' + error, 'error');
+            });
+    }
+
+    function refreshDisplay() {
+        const tbody = document.getElementById('resultBody');
+        tbody.innerHTML = '';
+
+        const compactMode = document.getElementById('compactMode').checked;
+
+        // 根据精简模式过滤拦截器
+        const displayInterceptors = compactMode ?
+            allInterceptors.filter(interceptor => interceptor.removable) :
+            allInterceptors;
+
+        if (displayInterceptors.length === 0) {
+            const row = document.createElement('tr');
+            row.innerHTML = `<td colspan="7" style="text-align:center;color:gray;">${compactMode ? '没有可删除的Interceptor' : '没有找到Interceptor'}</td>`;
+            tbody.appendChild(row);
+            return;
+        }
+
+        displayInterceptors.forEach((interceptor, index) => {
+            const row = document.createElement('tr');
+
+            // 转义HTML特殊字符
+            const escapeHtml = (text) => {
+                if (text === null || text === undefined) return '';
+                return String(text).replace(/[&<>"']/g, function(match) {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#39;'
+                    }[match];
+                });
+            };
+
+            const className = escapeHtml(interceptor.className);
+            const pathPatterns = Array.isArray(interceptor.pathPatterns) ?
+                interceptor.pathPatterns.map(escapeHtml).join(', ') :
+                escapeHtml(interceptor.pathPatterns);
+            const classLoader = escapeHtml(interceptor.classLoader);
+            const classLocation = escapeHtml(interceptor.classLocation);
+
+            row.innerHTML = `
+                <td style="text-align:center">${index + 1}</td>
+                <td>${className}</td>
+                <td>${pathPatterns}</td>
+                <td>${classLoader}</td>
+                <td>${classLocation}</td>
+                <td style="text-align:center">
+                    ${interceptor.removable ?
+                `<a href="javascript:void(0)"
+                    onclick="killInterceptor('${className}')"
+                    style="color:red;font-weight:bold">删除</a>` :
+                '<span style="color:gray">禁止删除</span>'
+            }
+                </td>
+                <td style="text-align:center">
+                    <a href="javascript:void(0)" onclick="dumpClass('${className}')">Dump</a>
+                </td>
+            `;
+
+            tbody.appendChild(row);
+        });
+    }
+
+    // 用于JavaScript字符串转义（新增）
+    function escapeForJs(str) {
+        return str.replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r');
+    }
+
+    function killInterceptor(className) {
+        if (confirm(`确定要删除Interceptor: ${className} 吗？`)) {
+            const formData = new URLSearchParams();
+            formData.append('className', className);
+
+            fetch('/I/kill', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showMessage('删除成功: ' + data.message, 'success');
+                        refreshScan();
+                    } else {
+                        showMessage('删除失败: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    showMessage('删除失败: ' + error, 'error');
+                });
+        }
+    }
+
+    function dumpClass(className) {
+        window.open(`/I/dump?className=${encodeURIComponent(className)}`, '_blank');
+    }
+
+    function showMessage(message, type) {
+        const messageDiv = document.getElementById('message');
+        const color = type === 'error' ? 'red' : 'green';
+        messageDiv.innerHTML = `<p style='color:${color}'>${message}</p>`;
+
+        // 3秒后自动消失
+        setTimeout(() => {
+            messageDiv.innerHTML = '';
+        }, 3000);
+    }
+</script>
+</body>
+</html>
