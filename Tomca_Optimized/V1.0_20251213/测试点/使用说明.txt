@@ -6,3 +6,6 @@
 3、不停止项目，删除jsp文件
 4、命令执行，如http://localhost:8080/JavaWeb_Test_war/FilterTest1?bb=calc
 5、使用“测试点”上一级目录的查杀文件进行卸载，把查杀文件拖入webapp目录中，访问：如http://localhost:8080/JavaWeb_Test_war/F.jsp
+
+注意：
+Listener未指定访问路径，只要有aa参数即可执行。如：http://127.0.0.1/JavaWeb_Test/xxx/Listener.jsp?aa=calc。xxx省略也可。
